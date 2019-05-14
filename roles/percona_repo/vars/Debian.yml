@@ -1,0 +1,4 @@
+---
+percona_mysql_repo:
+    - deb http://repo.percona.com/apt {{ ansible_lsb.codename }} main
+    - deb-src http://repo.percona.com/apt {{ ansible_lsb.codename }} main

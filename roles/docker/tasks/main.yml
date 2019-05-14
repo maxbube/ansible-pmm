@@ -1,0 +1,67 @@
+---
+- name: Install Docker repo
+  yum_repository:
+    name: docker
+    description: Docker Packages
+    file: docker
+    baseurl: 'https://yum.dockerproject.org/repo/main/centos/{{ ansible_distribution_major_version }}/'
+    enabled: no
+    gpgkey: https://yum.dockerproject.org/gpg
+    gpgcheck: yes
+    sslverify: no
+
+- name: Installing dependencies
+  yum:
+    name: python-docker-py
+    state: present
+
+- name: Install Docker (RHEL / CentOS)
+  yum:
+    name: docker-engine
+    state: present
+    enablerepo: docker
+  when: ansible_distribution in ['CentOS','RedHat','Oracle', 'Scientific']
+
+- name: Install Docker (Amazon Linux AMI)
+  yum:
+    name: docker
+    state: present
+    enablerepo: docker
+  when: ansible_distribution == "Amazon"
+
+- name: create sysconfig for docker
+  template:
+    src: sysconfig-docker-percona.j2
+    dest: /etc/sysconfig/docker-percona
+    owner: root
+    group: root
+    mode: 0644
+
+- name: create systemd directory for docker overrides
+  file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: create systemd overrides for docker
+  template:
+    src: systemd-docker-override.conf.j2
+    dest: /etc/systemd/system/docker.service.d/override.conf
+    force: yes
+    owner: root
+    group: root
+    mode: 0644
+  notify: docker restart
+  register: docker_overrides
+
+- name: load systemd overrides
+  command: systemctl daemon-reload
+  when: docker_overrides.changed
+
+- name: Start Docker Service
+  service:
+    name: docker
+    state: started
+    enabled: yes

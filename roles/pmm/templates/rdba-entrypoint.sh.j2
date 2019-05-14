@@ -1,0 +1,42 @@
+#!/bin/bash
+
+declare -r PARAMS="${*}"
+
+{% if pmm_rootless %}
+(
+    sudo chown -R "$(id -u):$(id -g)" \
+        /var/lib/mysql \
+        /opt/consul-data \
+        /opt/prometheus/data \
+        /var/lib/grafana \
+        /etc/nginx/ssl \
+        /etc/prometheus.yml \
+        /tmp/supervisord.pid \
+        /usr/share/grafana
+    sudo rm -f /etc/sudoers.d/pmm
+) &>/dev/null
+{% endif %}
+
+if [[ "${PARAMS}" =~ "PMM-2448" ]]; then
+    logger --tag=RDBA "Creating recording rules"
+    if [[ -z $(grep rule_files /etc/prometheus.yml) ]]; then
+        printf "\nrule_files:\n  - /etc/prometheus.d/*.yml\n" >> /etc/prometheus.yml
+    fi
+    cp -p /etc/prometheus.yml /tmp/prometheus.yml
+    sed "s/evaluation_interval: 60s/evaluation_interval: {{ pmm_prometheus_rules_evaluation }}/" /tmp/prometheus.yml > /etc/prometheus.yml
+{% if alertmanager_enabled %}
+    if [[ -z $(grep alertmanagers /etc/prometheus.yml) ]]; then
+    	cat >>/etc/prometheus.yml <<EOL
+
+alerting:
+  alertmanagers:
+    - scheme: http
+      path_prefix: /
+      static_configs:
+        - targets: ['{{ alertmanager_ip.stdout }}:9093']
+EOL
+    fi
+{% endif %}
+fi
+
+source /opt/entrypoint.sh

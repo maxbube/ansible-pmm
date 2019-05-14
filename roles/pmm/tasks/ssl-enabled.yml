@@ -1,0 +1,11 @@
+---
+- name: install ssl container
+  docker_container:
+    name: pmm-server
+    image: 'percona-rdba-pmm:{{ pmm_install_version }}'
+    state: started
+    memory: "{{ pmm_docker_memory }}"
+    published_ports: '{{ pmm_docker_ports }}'
+    volumes_from: pmm-data
+    stop_timeout: 300
+    trust_image_content: True

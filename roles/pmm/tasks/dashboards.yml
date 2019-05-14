@@ -1,0 +1,36 @@
+- name: create host dashboard directory
+  file:
+    path: "{{ pmm_host_dashboards_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: create host dashboard file
+  template:
+    src: "dashboards/{{ item }}.json.j2"
+    dest: "{{ pmm_host_dashboards_dir }}/{{ item }}.json"
+    owner: root
+    group: root
+    mode: 0644
+  loop: "{{ pmm_custom_dashboards }}"
+
+- name: add dashboard to grafana
+  uri:
+    url: 'https://{{ pmm_server_ip }}:{{ pmm_https_port }}/graph/api/dashboards/db'
+    method: POST
+    force_basic_auth: yes
+    user: '{{ pmm_server_username }}'
+    password: '{{ pmm_server_password }}'
+    body: '{{ lookup("file", "{{ pmm_host_dashboards_dir }}/{{ item }}.json") }}'
+    body_format: json
+    validate_certs: no
+    status_code:
+      - 200
+      - 412
+  register: pmm_add_dashboard
+  loop: "{{ pmm_custom_dashboards }}"
+  no_log: True
+  until: pmm_add_dashboard.status is defined and pmm_add_dashboard.status in [200, 412]
+  retries: 5
+  delay: 15

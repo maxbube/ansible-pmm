@@ -1,0 +1,53 @@
+{% if pmm_rootless %}
+FROM perconalab/pmm-server-openshift:{{ pmm_install_version }}
+{% else %}
+FROM percona/pmm-server:{{ pmm_install_version }}
+{% endif %}
+
+##########################################################################
+# Extra tasks
+
+{% if pmm_rootless %}
+USER root
+{% endif %}
+WORKDIR /etc/rdba
+
+COPY pmm-entrypoint.sh /opt/rdba-entrypoint.sh
+ENTRYPOINT ["/opt/rdba-entrypoint.sh"]
+
+RUN mkdir -p /usr/share/grafana/.aws
+COPY .aws_credentials /usr/share/grafana/.aws/credentials
+
+{% if pmm_ssl_enabled %}
+RUN mkdir -p /etc/nginx/ssl
+COPY {{ pmm_ssl_dir }}/server.pem /etc/nginx/ssl/server.pem
+RUN ln /etc/nginx/ssl/server.pem /etc/nginx/ssl/server.crt
+RUN ln /etc/nginx/ssl/server.pem /etc/nginx/ssl/server.key
+{% endif %}
+
+{% if (pmm_prometheus_rules_files|length > 0) %}
+RUN mkdir -p /etc/prometheus.d
+{% for file in pmm_prometheus_rules_files %}
+COPY ./prometheus_rules/{{ file }} /etc/prometheus.d/{{ file }}
+{% endfor %}
+{% endif %}
+
+{% if alertmanager_enabled %}
+COPY ./prometheus_rules/alerts.yml /etc/prometheus.d/alerts.yml
+{% endif %}
+
+{% if pmm_rootless %}
+RUN yum install -y sudo && \
+    printf "pmm ALL=(ALL) NOPASSWD:/bin/chown,/bin/rm -f /etc/sudoers.d/pmm\n" >> /etc/sudoers.d/pmm
+
+USER pmm
+{% endif %}
+
+{% for item in pmm_docker_env %}
+ENV {{ item }} {{ pmm_docker_env[item] }}
+{% endfor %}
+
+##########################################################################
+# PR-related tasks
+
+CMD ["PMM-2448"]

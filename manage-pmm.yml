@@ -1,0 +1,21 @@
+---
+- hosts: pmm-server
+  become: true
+  gather_facts: yes
+  roles:
+  - { role: docker, tags: docker }
+  - { role: pmm, tags: pmm }
+
+- hosts: pmm-managed
+  become: true
+  gather_facts: no
+  serial: 1
+  roles:
+  - { role: pmm_managed, tags: pmm-managed }
+
+- hosts: pmm-client
+  become: true
+  gather_facts: yes
+  roles:
+  - { role: pmm_client, tags: pmm-client }
+

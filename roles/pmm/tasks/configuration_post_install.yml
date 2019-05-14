@@ -1,0 +1,35 @@
+---
+- name: Pull backend images for percona/pmm-server:{{ pmm_install_version }}
+  shell: "/bin/docker image inspect percona/pmm-server:{{ pmm_install_version }} > /dev/null 2>&1 || /bin/docker pull percona/pmm-server:{{ pmm_install_version }}"
+  register: docker_pull_result
+  changed_when: "'Status: Downloaded newer image for' in docker_pull_result.stdout"
+
+- name: check the current version
+  command: 'docker  ps -a --filter "name=pmm-server" --format {% raw %}"{{ .Image }}"{% endraw %}'
+  register: pmm_version_status
+  changed_when: pmm_version_status.stdout == ''
+
+- name: purge data container
+  docker_container:
+    name: pmm-data
+    state: absent
+  when: pmm_reset_container
+
+- name: create data container
+  docker_container:
+    name: pmm-data
+    image: "percona/pmm-server:{{ pmm_install_version }}"
+    state: present
+    volumes:
+      - /opt/prometheus/data
+      - /opt/consul-data
+      - /var/lib/mysql
+      - /var/lib/grafana
+    command: /bin/true
+  when: pmm_version_status.changed or pmm_reset_container
+
+- include_tasks: ssl-enabled.yml
+  when: pmm_ssl_enabled
+
+- include_tasks: ssl-disabled.yml
+  when: not pmm_ssl_enabled

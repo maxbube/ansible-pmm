@@ -1,0 +1,3 @@
+---
+pmm_host_dashboards_dir: /etc/pmm/grafana_dashboards
+pmm_container_dashboards_tmp_dir: /tmp

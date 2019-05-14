@@ -1,0 +1,5 @@
+---
+- name: install percona repo on red hat family hosts
+  yum:
+    name: "{{ percona_mysql_repo|default([]) }}"
+    state: present

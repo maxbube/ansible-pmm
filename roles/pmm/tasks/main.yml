@@ -1,0 +1,11 @@
+---
+- include_tasks: install.yml
+- include_tasks: configuration_post_install.yml
+- include_tasks: dashboards.yml
+  when: pmm_custom_dashboards_enabled
+
+- name: store version
+  copy:
+    content: '{{ pmm_install_version }}'
+    dest: /etc/rdba/pmm_version
+    mode: 0444

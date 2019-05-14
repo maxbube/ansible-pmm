@@ -1,0 +1,37 @@
+---
+- name: create alertmanager dir
+  file:
+    path: "/etc/rdba/alertmanager"
+    state: directory
+    mode: 0755
+
+- name: create alertmanager config
+  template:
+    src: alertmanager.yml.j2
+    dest: /etc/rdba/alertmanager/alertmanager.yml
+    mode: 0644
+
+- name: check container
+  command: docker images --filter 'reference=prom/alertmanager:v{{ alertmanager_version }}' -q
+  register: alertmanager_check_container
+  changed_when: (alertmanager_check_container.stdout == '')
+  notify:
+    - start alertmanager container
+    - restart alertmanager container
+
+- name: create alertmanager data volume
+  docker_volume:
+    name: alertmanager_data
+
+- name: install alertmanager container
+  docker_container:
+    name: alertmanager
+    read_only: yes
+    image: "prom/alertmanager:v{{ alertmanager_version }}"
+    state: started
+    published_ports: 9093:9093
+    exposed_ports: 9093
+    command: --config.file=/etc/alertmanager/alertmanager.yml --storage.path=/alertmanager
+    volumes:
+      - alertmanager_data:/alertmanager:rw
+      - /etc/rdba/alertmanager:/etc/alertmanager/:ro

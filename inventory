@@ -1,0 +1,26 @@
+server ansible_host=192.168.2.11
+mysql-db1 ansible_host=192.168.2.12
+mongodb-db1 ansible_host=192.168.2.13
+rds-db1 ansible_host=test-rds-1.xxxxxxx.us-west-2.rds.amazonaws.com
+
+[pmm-server]
+server
+
+[pmm-client]
+mysql-db1
+mongodb-db1
+
+[pmm-managed]
+#rds-db1
+
+[mysql]
+mysql-db1
+
+[proxysql]
+mysql-db1
+
+[mongodb]
+mongodb-db1
+
+[rds]
+rds-db1

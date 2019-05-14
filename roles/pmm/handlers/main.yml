@@ -1,0 +1,9 @@
+---
+- name: start pmm container
+  command: docker start pmm-server
+
+- name: restart pmm container
+  command: '{{ item }}'
+  with_items:
+    - docker stop pmm-server
+    - docker start pmm-server

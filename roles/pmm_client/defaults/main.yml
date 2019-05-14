@@ -1,0 +1,39 @@
+---
+## PMM client configuration
+#
+pmm_version: "{{ global_pmm_version | default('1.17.1') }}"
+pmm_install_version: "{{ pmm_version }}"
+
+linux_metrics_port: 42000                                              # Not applicable to RDS script, uses prom_exporter_port from CNS
+mysql_queries_port: 42001                                              # port is not currently in use
+mysql_metrics_port: 42002                                              # Not applicable to RDS script, uses prom_exporter_port + 1000
+mongodb_metrics_port: 42003
+proxysql_metrics_port: 42004
+
+pmm_query_source: slowlog                                              # Automatically performance_schema when RDS is used
+pmm_defaults_file: /usr/local/percona/.my.cnf                          # Used with pmm-admin for MySQL credentials
+
+#pmm_src_defaults_file: /path/to/.my.cnf                               # Source for pmm_defaults_file - use global_pmm_mysql_username and global_pmm_mysql_passwd
+                                                                       # in ansible vault instead, unless requiring special settings or per-host.
+
+pmm_qan_enabled: yes                                                   # enable/disable provisioning of client side mysql:queries (QAN)
+
+pmm_client_ci: yes                                                     # enable CI for PMM
+
+                                                                       # use /etc/ansible/group_vars/pmm-client/pmm.yml
+pmm_client_enabled: yes                                                # enable/disable pmm-client deployment
+pmm_client_bind_address: "{{ ansible_ssh_host }}"                      # Set the bind address (IPv4)
+pmm_client_mysqld_exporter_extra_args: []                              # Extra args for pmm-admin to pass to mysqld_exporter, e.g. "-collect.perf_schema.eventswaits=false"
+pmm_client_node_exporter_extra_args: []                                # Extra args for pmm-admin to pass to node_exporter
+pmm_client_disable_tablestats_limit: 1000                              # Set limit (table count) for disabling tablestats
+pmm_client_check_for_vividcortex: false                                # Handle Vividcortex agent during tasks
+
+# This must be placed in vault
+pmm_client_username: pmm
+pmm_client_passwd: Vault_m3!
+
+pmm_mysql_username: "{{ pmm_client_username }}"
+pmm_mysql_passwd: "{{ pmm_client_passwd }}"
+
+pmm_mongodb_username: "{{ pmm_client_username }}"
+pmm_mongodb_passwd: "{{ pmm_client_passwd }}"

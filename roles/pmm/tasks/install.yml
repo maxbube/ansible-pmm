@@ -1,0 +1,90 @@
+---
+# this file needs to be readable by the grafana user in the docker image
+# I created a PMM request to ensure this remains the same: https://jira.percona.com/browse/PMM-624
+# If we cannot get guarantees we need to make it world readable, which we should avoid.
+- name: create AWS credentials
+  template:
+    src: aws_credentials.j2
+    dest: /etc/rdba/.aws_credentials
+    owner: 996
+    group: 996
+    mode: 0600
+  notify: restart pmm container
+
+- name: create ssl storage
+  file:
+    path: "/etc/rdba/{{ pmm_ssl_dir }}"
+    state: directory
+    mode: 0750
+  register: pmm_ssl_dir_task
+
+- name: check self-signed ssl
+  stat:
+    path: "/etc/rdba/{{ pmm_ssl_dir }}/server.pem"
+  register: pmm_ssl_cert
+
+- name: create make-cert
+  template:
+    src: make-cert.j2
+    dest: /etc/pki/tls/certs/make-rdba-cert
+    mode: 0755
+    owner: root
+  register: pmm_ssl_make_cert
+
+- name: create self-signed ssl
+  command: /etc/pki/tls/certs/make-rdba-cert "/etc/rdba/{{ pmm_ssl_dir }}/server.pem"
+  register: pmm_ssl_create_task
+  when: (pmm_ssl_make_cert.changed) or (not pmm_ssl_cert.stat.exists)
+
+- name: create local rules dir
+  file:
+    path: /etc/rdba/prometheus_rules
+    state: directory
+
+- name: create rules files
+  template:
+    src: "{{ item }}.j2"
+    dest: "/etc/rdba/prometheus_rules/{{ item }}"
+  loop: "{{ pmm_prometheus_rules_files }}"
+  register: pmm_prom_rules
+
+- name: create alerts files
+  template:
+    src: alerts.yml.j2
+    dest: /etc/rdba/prometheus_rules/alerts.yml
+  register: pmm_prom_alerts
+  when: alertmanager_enabled
+
+- name: create Dockerfile
+  template:
+    src: Dockerfile.j2
+    dest: /etc/rdba/Dockerfile
+    owner: root
+    mode: 000
+  register: pmm_dockerfile
+  notify:
+    - start pmm container
+    - restart pmm container
+
+- name: get alertmanager container ip
+  shell: "docker inspect --format='{{ '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' }}' alertmanager"
+  register: alertmanager_ip
+  when: alertmanager_enabled
+
+- name: create entrypoint
+  template:
+    src: rdba-entrypoint.sh.j2
+    dest: /etc/rdba/pmm-entrypoint.sh
+    mode: 0755
+  register: pmm_entrypoint
+
+- name: check container
+  command: docker images --filter 'reference=percona-rdba-pmm:{{ pmm_install_version }}' -q
+  register: pmm_check_container
+  changed_when: (pmm_check_container.stdout == '')
+
+- name: build container
+  command: docker build -t percona-rdba-pmm:{{ pmm_install_version }} .
+  args:
+    chdir: /etc/rdba
+  when: (pmm_dockerfile.changed) or (pmm_check_container.changed) or (pmm_entrypoint.changed) or (pmm_ssl_create_task.changed) or (pmm_prom_rules.changed) or (pmm_prom_alerts.changed)

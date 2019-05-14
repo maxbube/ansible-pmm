@@ -1,0 +1,112 @@
+---
+- set_fact:
+    pmm_server_ip: "{{ hostvars['server'].ansible_host }}"
+  when: pmm_server_ip is undefined
+
+- set_fact:
+    pmm_server_port: 8443
+    pmm_server_ssl: --server-insecure-ssl
+  when: pmm_ssl_enabled
+
+- set_fact:
+    pmm_server_port: 8080
+    pmm_server_ssl: ""
+  when: not pmm_ssl_enabled
+
+- name: Python dependencies
+  yum:
+    name: python-ssl
+    state: present
+  when: ansible_distribution in ['CentOS','RedHat','Oracle', 'Scientific'] and ansible_distribution_version < 6
+
+- name: Check pmm-client running version
+  command: /usr/sbin/pmm-admin --version
+  register: pmm_version_running
+  ignore_errors: yes
+  changed_when: (pmm_version_running.rc == 0 and pmm_version_running.stdout is version_compare(pmm_install_version, '!='))
+
+- name: Install pmm-client (RedHat family & Amazon)
+  yum:
+    name: "pmm-client-{{ pmm_install_version }}"
+    state: present
+    allow_downgrade: yes
+  when: ansible_distribution in ['CentOS','RedHat','Oracle', 'Scientific', 'Amazon']
+
+- name: Install pmm-client (Debian family)
+  apt:
+    name: "pmm-client={{ [ pmm_install_version, '-1.', ansible_lsb.codename ] | join('') }}"
+    state: present
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when: ansible_os_family == 'Debian'
+
+- name: check for orphaned services
+  command: /usr/sbin/pmm-admin list
+  register: pmm_orphaned_services
+  no_log: yes
+  changed_when: ('Orphaned local services' in pmm_orphaned_services.stdout) or ('Orphaned remote services' in pmm_orphaned_services.stdout)
+  failed_when: (pmm_orphaned_services.rc > 0) and not pmm_orphaned_services.changed and (not 'PMM client is not configured' in pmm_orphaned_services.stdout)
+
+- name: repair services
+  command: /usr/sbin/pmm-admin repair
+  no_log: yes
+  when: pmm_orphaned_services.changed
+
+- name: check for incorrect configuration
+  command: /usr/sbin/pmm-admin list
+  register: pmm_incorrect_config
+  no_log: yes
+  changed_when: ('Unable to connect to PMM server by address' in pmm_incorrect_config.stdout_lines[0]) and (pmm_server_ip not in pmm_incorrect_config.stdout_lines[0])
+  failed_when: (pmm_incorrect_config.rc > 0) and not pmm_incorrect_config.changed
+  when: not 'PMM client is not configured' in pmm_orphaned_services.stdout
+
+- name: reset configuration
+  command: /usr/sbin/pmm-admin uninstall
+  no_log: yes
+  when: pmm_incorrect_config.changed
+
+- name: Check existing services
+  command: /usr/sbin/pmm-admin list
+  register: pmm_existing_services
+  no_log: yes
+  changed_when: ('PMM client is not configured' in pmm_existing_services.stdout) or ('No services under monitoring' in pmm_existing_services.stdout) or (pmm_existing_services.rc > 0 and 'Unable to connect to PMM server by address' in pmm_existing_services.stdout_lines[0])
+  failed_when: ( pmm_existing_services.rc > 0) and ('PMM client is not configured' not in pmm_existing_services.stdout) and ('No services under monitoring' not in pmm_existing_services.stdout)
+  ignore_errors: yes
+
+- name: Check/configure PMM
+  command: "/usr/sbin/pmm-admin config --client-name {{ pmm_alias | default(inventory_hostname) }} --client-address {{ ansible_ssh_host }} --server {{ pmm_server_ip }}:{{ pmm_server_port }} --server-user {{ pmm_server_username }} --server-password {{ pmm_server_password }} {{ pmm_server_ssl }} --bind-address {{ pmm_client_bind_address }}"
+  when: (pmm_version_running.changed or pmm_version_running.rc > 0 or pmm_existing_services.changed)
+
+- name: Add Linux metrics
+  command: "/usr/sbin/pmm-admin add linux:metrics {{ pmm_alias | default(inventory_hostname) }} --service-port={{ linux_metrics_port }} -- {{ pmm_client_node_exporter_extra_args | join(' ') }}"
+  when: ('linux:metrics' not in pmm_existing_services.stdout)
+  register: linux_metrics
+
+- name: percona-agent present
+  stat:
+    path: /usr/local/percona/percona-agent
+  register: percona_agent_present
+
+- name: Disable percona-agent if present
+  service:
+     name: percona-agent
+     state: stopped
+     enabled: no
+  when: percona_agent_present.stat.exists == True
+
+- name: Restart Prometheus client (Linux metrics)
+  service:
+    name: "pmm-linux-metrics-{{ linux_metrics_port }}"
+    state: restarted
+    enabled: yes
+  when: linux_metrics.changed or pmm_version_running.changed
+
+# tasks file for pmm-client by group
+- include_tasks: manage-mysql.yml
+  when: inventory_hostname in groups['mysql']
+
+- include_tasks: manage-proxysql.yml
+  when: inventory_hostname in groups['proxysql']
+
+- include_tasks: manage-mongodb.yml
+  when: inventory_hostname in groups['mongodb']

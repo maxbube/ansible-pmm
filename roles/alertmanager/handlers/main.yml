@@ -1,0 +1,9 @@
+---
+- name: start alertmanager container
+  command: docker start alertmanager
+
+- name: restart alertmanager container
+  command: '{{ item }}'
+  with_items:
+    - docker stop alertmanager
+    - docker start alertmanager

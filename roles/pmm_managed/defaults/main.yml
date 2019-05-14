@@ -1,0 +1,6 @@
+---
+pmm_managed_enabled: yes                                              # enable/disable pmm_managed conf; when disabled
+                                                                      # monitoring via PMM occurs with pmm-admin on the server host
+
+pmm_rds_host_name: '{{ ansible_host.split(".")[0] }}'           # Specify the name used by pmm-managed to add the host
+pmm_rds_host_region: '{{ ansible_host.split(".")[2] }}'         # Specify the region used by pmm-managed to add the host

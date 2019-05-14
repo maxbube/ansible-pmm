@@ -1,0 +1,53 @@
+---
+
+pmm_version: "{{ global_pmm_version | default('1.17.1') }}"
+pmm_install_version: "{{ pmm_version }}"
+
+# Must be stored stored in vault
+pmm_server_username: pmm
+pmm_server_password: VAULT_ME
+
+
+# https://www.percona.com/doc/percona-monitoring-and-management/amazon-rds.html#monitoring-amazon-rds-os-metrics
+# As documented, this can be an IAM user with CloudWatchReadOnlyAccess access
+pmm_aws_access_key_id: your_aws_access_key_id
+pmm_aws_secret_access_key: your_aws_secret_access_key
+
+pmm_rootless: no                                                    # Run the PMM container in rootless mode
+
+pmm_ssl_enabled: True                                               # Enable SSL for PMM
+pmm_ssl_dir: pmm-ssl                                                # Relative path in /etc/ for generated certs
+pmm_ssl_expire_days: 3650                                           # Expiry time for the cert (in days)
+pmm_ssl_cert_address: localhost
+
+pmm_reset_container: no                                             # Force a reset of the data container
+
+pmm_metrics_retention: 720h                                         # Data retention for Prometheus; N.B. set before the container is created/recreated
+pmm_metrics_resolution: 5s                                          # Resolution time in Prometheus; default of 5s to reduce load
+pmm_metrics_memory: "{{ ansible_memtotal_mb * 128 }}"               # Specify memory available to Prometheus; ansible_memtotal_mb multiplied by 128 since pmm_metrics_memory is in KB
+pmm_queries_retention: 8                                            # Applies QUERIES_RETENTION to the Docker container to configure QAN purging
+
+pmm_http_port: 8080                                                 # Port for unencrypted requests
+pmm_https_port: 8443                                                # Port for encrypted requests
+pmm_docker_ports:                                                   # Port mapping
+- '{{ pmm_http_port }}:{{ 8080 if pmm_rootless else 80 }}/tcp'
+- '{{ pmm_https_port }}:{{ 8443 if pmm_rootless else 443 }}/tcp'
+pmm_docker_memory: "{{ (ansible_memtotal_mb / 2) | int }}MB"        # Restrict memory usage for Docker; divided by 2 since this value is required in MB
+pmm_docker_env:                                                     # ENV vars applied to the pmm-server container
+        SERVER_USER: "{{ pmm_server_username }}"
+        SERVER_PASSWORD: "{{ pmm_server_password }}"
+        METRICS_RETENTION: "{{ pmm_metrics_retention }}"
+        METRICS_RESOLUTION: "{{ pmm_metrics_resolution }}"
+        METRICS_MEMORY: "{{ pmm_metrics_memory }}"
+        DISABLE_UPDATES: 1
+        QUERIES_RETENTION: "{{ pmm_queries_retention }}"            # Enable this if you want to adjust QAN purging
+
+# Prometheus recording rules
+pmm_prometheus_rules_evaluation: 5m                                 # Period for rules evalutation in Prometheus
+pmm_prometheus_rules_files: []                                      # A list of files specifying recording rules
+  
+
+pmm_custom_dashboards_enabled: yes                                  # Enable custom dashboards deployment
+
+pmm_custom_dashboards: []                                           # List of daashboards to be added
+...

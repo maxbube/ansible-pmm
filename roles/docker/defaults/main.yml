@@ -1,0 +1,3 @@
+---
+docker_options: ""                                              # Options applied via systemd
+docker_storage_options: --storage-driver=devicemapper           # Storage driver for Docker

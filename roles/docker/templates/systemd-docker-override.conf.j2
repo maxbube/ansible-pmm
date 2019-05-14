@@ -1,0 +1,5 @@
+[Service]
+EnvironmentFile=-/etc/sysconfig/docker-percona
+ExecStart=
+ExecStart=/usr/bin/dockerd $OPTIONS $DOCKER_STORAGE_OPTIONS
+MountFlags=private

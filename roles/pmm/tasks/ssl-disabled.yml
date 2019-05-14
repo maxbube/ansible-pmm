@@ -1,0 +1,44 @@
+---
+- name: disable ssl for pmm
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ pmm_ssl_dir }}/server.crt"
+    - "{{ pmm_ssl_dir }}/server.key"
+  notify: restart pmm container
+
+- name: check existing binds
+  command: "docker inspect -f '{{ '{{' }} .HostConfig.Binds {{ '}}' }}' pmm-server"
+  register: pmm_server_inspect
+  failed_when: false
+  changed_when: (pmm_ssl_dir in pmm_server_inspect.stdout)
+
+- name: refresh container
+  docker_container:
+    name: pmm-server
+    image: 'percona-rdba-pmm:{{ pmm_install_version }}'
+    state: started
+    recreate: yes
+    memory: "{{ pmm_docker_memory }}"
+    published_ports: '{{ pmm_docker_ports }}'
+    volumes_from: pmm-data
+    volumes:
+      - "/etc/rdba/.aws_credentials:/usr/share/grafana/.aws/credentials:ro"
+    env: '{{ pmm_docker_env }}'
+    stop_timeout: 300
+  when: pmm_server_inspect.changed
+
+- name: install container
+  docker_container:
+    name: pmm-server
+    image: 'percona-rdba-pmm:{{ pmm_install_version }}'
+    state: started
+    memory: "{{ pmm_docker_memory }}"
+    published_ports: '{{ pmm_docker_ports }}'
+    volumes_from: pmm-data
+    volumes:
+      - "/etc/rdba/.aws_credentials:/usr/share/grafana/.aws/credentials:ro"
+    env: '{{ pmm_docker_env }}'
+    stop_timeout: 300
+  when: not pmm_server_inspect.changed

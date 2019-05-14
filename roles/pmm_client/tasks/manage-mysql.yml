@@ -1,0 +1,60 @@
+- name: Create --defaults-file with credentials from vault
+  template:
+    src: "pmm_defaults_file_template.j2"
+    dest: '{{ pmm_defaults_file }}'
+    owner: root
+    mode: 0600
+  when: pmm_src_defaults_file is not defined and ('mysql:queries' not in pmm_existing_services.stdout)
+
+- name: Create --defaults-file with custom credentials (from file)
+  copy:
+    src: "{{ pmm_src_defaults_file }}"
+    dest: '{{ pmm_defaults_file }}'
+    owner: root
+    mode: 0600
+  when: pmm_src_defaults_file is defined and ('mysql:queries' not in pmm_existing_services.stdout)
+
+- name: Check for vividcortex agent
+  command: pgrep -f vc-mysql-metrics
+  register: vc_result
+  failed_when: false
+  changed_when: false
+  when: pmm_client_check_for_vividcortex
+
+- name: Stopping vividcortex Agent
+  service:
+    name: vividcortex
+    state: stopped
+  when: ( vc_result.rc is defined and vc_result.rc == 0 ) and (('mysql:metrics' not in pmm_existing_services.stdout) or ('mysql:queries' not in pmm_existing_services.stdout and pmm_qan_enabled))
+
+- name: Add MySQL metrics
+  command: >-
+            /usr/sbin/pmm-admin add mysql:metrics {{ pmm_alias | default(inventory_hostname) }}
+            --service-port {{ mysql_metrics_port }}
+            --defaults-file {{ pmm_defaults_file }}
+            --disable-tablestats-limit {{ pmm_client_disable_tablestats_limit }}
+            -- {{ pmm_client_mysqld_exporter_extra_args | join(' ') }}
+  when: ('mysql:metrics' not in pmm_existing_services.stdout)
+  register: mysql_metrics
+
+- name: Restart Prometheus client (MySQL metrics)
+  service:
+    name: "pmm-mysql-metrics-{{ mysql_metrics_port }}"
+    state: restarted
+    enabled: yes
+  when: (mysql_metrics is defined and mysql_metrics.changed) or (pmm_version_running is defined and pmm_version_running.changed)
+
+- name: Add QAN collection
+  command: "/usr/sbin/pmm-admin add mysql:queries {{ pmm_alias | default(inventory_hostname) }} --service-port {{ mysql_queries_port }} --query-source {{ pmm_query_source }} --defaults-file {{ pmm_defaults_file }}"
+  when: ('mysql:queries' not in pmm_existing_services.stdout) and pmm_qan_enabled
+  register: qan_metrics
+
+- name: Starting vividcortex Agent
+  service:
+    name: vividcortex
+    state: started
+  when: ( vc_result.rc is defined and vc_result.rc == 0 ) and (('mysql:metrics' not in pmm_existing_services.stdout) or ('mysql:queries' not in pmm_existing_services.stdout and pmm_qan_enabled))
+
+- name: Restart QAN client
+  command: "/usr/sbin/pmm-admin restart mysql:queries {{ pmm_alias | default(inventory_hostname) }}"
+  when: (qan_metrics.changed or pmm_version_running.changed) and pmm_qan_enabled

@@ -1,0 +1,27 @@
+---
+- name: Add RDS server
+  uri:
+    url: "https://{{ hostvars['server'].ansible_host }}:8443/managed/v0/rds"
+    method: POST
+    user: "{{ pmm_server_username }}"
+    password: "{{ pmm_server_password }}"
+    body: |
+          {
+            "aws_access_key_id": "{{ pmm_aws_access_key_id }}",
+            "aws_secret_access_key": "{{ pmm_aws_secret_access_key }}",
+            "id": {
+              "name": "{{ pmm_rds_host_name }}",
+              "region": "{{ pmm_rds_host_region }}"
+            },
+            "password": "{{ pmm_mysql_passwd }}",
+            "username": "{{ pmm_mysql_username }}"
+          }
+    force_basic_auth: yes
+    status_code:
+      - 200
+      - 409
+    body_format: json
+    validate_certs: no
+  register: pmm_managed
+  connection: local
+...
