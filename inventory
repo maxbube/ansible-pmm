@@ -3,16 +3,6 @@ mysql-db1 ansible_host=192.168.2.12
 mongodb-db1 ansible_host=192.168.2.13
 rds-db1 ansible_host=test-rds-1.xxxxxxx.us-west-2.rds.amazonaws.com
 
-[pmm-server]
-server
-
-[pmm-client]
-mysql-db1
-mongodb-db1
-
-[pmm-managed]
-#rds-db1
-
 [mysql]
 mysql-db1
 
@@ -24,3 +14,24 @@ mongodb-db1
 
 [rds]
 rds-db1
+
+[pmm:children]
+pmm-server
+pmm-client
+pmm-managed
+
+[pmm-server]
+server
+
+[pmm-client:children]
+mysql
+mongodb
+
+[pmm-managed:children]
+#rds
+
+[pmm:vars]
+global_pmm_version=1.17.1
+pmm_ssl_enabled=True
+pmm_server_username=pmm
+pmm_server_password=VAULT_ME

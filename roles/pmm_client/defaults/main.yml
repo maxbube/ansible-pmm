@@ -28,7 +28,7 @@ pmm_client_node_exporter_extra_args: []                                # Extra a
 pmm_client_disable_tablestats_limit: 1000                              # Set limit (table count) for disabling tablestats
 pmm_client_check_for_vividcortex: false                                # Handle Vividcortex agent during tasks
 
-# This must be placed in vault
+# These must be placed in vault
 pmm_client_username: pmm
 pmm_client_passwd: Vault_m3!
 

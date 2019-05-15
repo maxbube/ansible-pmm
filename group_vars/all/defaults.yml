@@ -1,4 +1,1 @@
 ---
-pmm_ssl_enabled: yes
-pmm_server_username: pmm
-pmm_server_password: VAULT_ME
